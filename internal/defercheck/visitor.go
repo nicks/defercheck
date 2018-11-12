@@ -63,6 +63,32 @@ func (v *visitor) analyzeNode(n ast.Node, state visitorState) visitorState {
 		case *ast.DeferStmt:
 			state = v.analyzeDefer(n, state)
 			return false
+		case *ast.ReturnStmt:
+			if v.fType.Results == nil {
+				return false
+			}
+
+			for _, retField := range v.fType.Results.List {
+				if len(retField.Names) != 1 {
+					continue
+				}
+
+				ident := retField.Names[0]
+				obj, ok := v.pass.TypesInfo.Defs[ident]
+				if !ok {
+					continue
+				}
+
+				evalNode, evaled := state.deferEvaledVars.Use(obj)
+				if !evaled {
+					continue
+				}
+
+				v.pass.Reportf(evalNode.Pos(),
+					"variable %s evaluated by defer, then returned later", ident.Name)
+			}
+			return false
+
 		case *ast.AssignStmt:
 			for _, lhs := range n.Lhs {
 				ident, isIdent := lhs.(*ast.Ident)
